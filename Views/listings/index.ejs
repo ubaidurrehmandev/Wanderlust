@@ -1,0 +1,166 @@
+<% layout("/layouts/boilerplate") %> 
+
+<style>
+  #filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .filter {
+    text-align: center;
+    opacity: 0.7;
+    cursor: pointer;
+    transition: opacity 0.3s;
+  }
+
+  .filter:hover {
+    opacity: 1;
+    cursor: pointer;
+  }
+
+  .filter.active {
+    opacity: 1;
+    border-bottom: 3px solid #fe424d;
+    padding-bottom: 0.5rem;
+  }
+
+  .filter p {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+</style>
+
+<!-- Original Quick Filter Buttons -->
+<div id="filters">
+  <div class="filter" onclick="filterByCategory('Trending')">
+    <div><i class="fa-solid fa-fire"></i></div>
+    <p>Trending</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Rooms')">
+    <div><i class="fa-solid fa-bed"></i></div>
+    <p>Rooms</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Iconic Cities')">
+    <div><i class="fa-solid fa-mountain-city"></i></div>
+    <p>Iconic Cities</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Mountains')">
+    <div><i class="fa-solid fa-mountain"></i></div>
+    <p>Mountains</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Castle')">
+    <div><i class="fa-brands fa-fort-awesome"></i></div>
+    <p>Castle</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Amazing Pools')">
+    <div><i class="fa-solid fa-person-swimming"></i></div>
+    <p>Amazing Pools</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Camping')">
+    <div><i class="fa-solid fa-campground"></i></div>
+    <p>Camping</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Farms')">
+    <div><i class="fa-solid fa-tractor"></i></div>
+    <p>Farms</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Arctic')">
+    <div><i class="fa-regular fa-snowflake"></i></div>
+    <p>Arctic</p>
+  </div>
+</div>
+
+
+
+<% if (category || search) { %>
+  <div class="alert alert-info mt-3" role="alert">
+    <% if (search) { %>
+      Searching: <strong>"<%= search %>"</strong>
+    <% } %>
+    <% if (category) { %>
+      Category: <strong>"<%= category %>"</strong>
+    <% } %>
+    <a href="/listings" class="btn btn-sm btn-outline-secondary ms-2">Clear</a>
+  </div>
+<% } %>
+
+<% if (allListings.length === 0) { %>
+  <div class="alert alert-warning mt-3" role="alert">
+    No listings found. Try adjusting your filters or search terms.
+  </div>
+<% } %>
+
+<div class="row row-cols-lg-3 row-cols-md-2 row-cols-sm-1 mt-3">
+
+  <% for (let listing of allListings) { %>
+
+    <div class="col mb-4">
+
+      <a href="/listings/<%= listing._id %>" class="listing-link">
+
+        <div class="listing-card">
+
+          <img src="<%= listing.image.url %>" class="card-img-top" alt="listing_image" style="height: 20rem;" />
+
+          <div class="card-img-overlay"></div>
+
+          <div class="card-body">
+            <p class="card-text">
+              <b>
+                <%= listing.title %>
+              </b>
+              <br>
+              &#8360; <%= listing.price.toLocaleString("en-PK") %> / night
+              <% if (listing.propertyType) { %>
+                <br><small class="text-muted"><%= listing.propertyType %></small>
+              <% } %>
+            </p>
+          </div>
+
+        </div>
+
+      </a>
+
+    </div>
+
+  <% } %>
+
+</div>
+
+<script>
+  function filterByCategory(categoryName) {
+    // Get current query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Build new URL with category, preserving search filter
+    let newUrl = `/listings?category=${encodeURIComponent(categoryName)}`;
+    
+    // Preserve search filter
+    const search = urlParams.get('search');
+    if (search) {
+      newUrl += `&search=${encodeURIComponent(search)}`;
+    }
+    
+    window.location.href = newUrl;
+  }
+
+  // Highlight active category filter
+  document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeCategory = urlParams.get('category');
+    
+    if (activeCategory) {
+      const filters = document.querySelectorAll('.filter');
+      filters.forEach(filter => {
+        // Get the text content from the paragraph
+        const filterText = filter.querySelector('p').textContent.trim();
+        if (filterText === activeCategory) {
+          filter.classList.add('active');
+        }
+      });
+    }
+  });
+</script>

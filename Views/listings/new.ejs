@@ -1,0 +1,155 @@
+<% layout("/layouts/boilerplate") -%>
+
+
+  <div class="row mt-3">
+    <div class="col-8 offset-2">
+
+      <h3>Create a New Listing</h3>
+
+      <form method="POST" action="/listings" novalidate class="needs-validation" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label for="title" class="form-label">Title</label>
+          <input name="listing[title]" type="text" class="form-control" placeholder="Add a catchy title" required />
+          <div class="invalid-feedback">Please Enter the Title</div>
+        </div>
+        <div class="mb-3">
+          <label for="description" class="form-label">Description</label>
+          <textarea name="listing[description]" class="form-control" required></textarea>
+          <div class="invalid-feedback">Please Enter the Description</div>
+        </div>
+        <div class="mb-3">
+          <label for="imageUrl" class="form-label">Image URL (optional)</label>
+          <input id="imageUrl" name="listing[image][url]" placeholder="enter image URL/Link" type="text" class="form-control" />
+        </div>
+        <div class="mb-3">
+          <label for="image" class="form-label">Upload an Image (optional)</label>
+          <input id="image" name="image" type="file" accept="image/*" class="form-control" />
+        </div>
+
+        <div class="row">
+          <div class="mb-3 col-md-4">
+            <label for="price" class="form-label">Price</label>
+            <input name="listing[price]" placeholder="1200" type="string" class="form-control" required />
+            <div class="invalid-feedback">Please Enter the Price</div>
+          </div>
+          <div class="mb-3 col-md-8">
+            <label for="country" class="form-label">Country</label>
+            <input name="listing[country]" placeholder="Pakistan" type="text" class="form-control" required />
+            <div class="invalid-feedback">Please Enter the Country</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="location" class="form-label">Location</label>
+          <input name="listing[location]" placeholder="Abbottabad, KPK" type="text" class="form-control" required />
+          <div class="invalid-feedback">Please Enter the Location</div>
+        </div>
+        <div class="mb-3">
+          <label for="category" class="form-label">Category</label>
+          <select name="listing[category]" class="form-select" required>
+            <option value="">Select a Category</option>
+            <option value="Trending">Trending</option>
+            <option value="Rooms">Rooms</option>
+            <option value="Iconic Cities">Iconic Cities</option>
+            <option value="Mountains">Mountains</option>
+            <option value="Castle">Castle</option>
+            <option value="Amazing Pools">Amazing Pools</option>
+            <option value="Camping">Camping</option>
+            <option value="Farms">Farms</option>
+            <option value="Arctic">Arctic</option>
+            <option value="Beach">Beach</option>
+            <option value="City">City</option>
+            <option value="Countryside">Countryside</option>
+            <option value="Luxury">Luxury</option>
+            <option value="Adventure">Adventure</option>
+            <option value="Cultural">Cultural</option>
+            <option value="Skiing">Skiing</option>
+            <option value="Historical">Historical</option>
+          </select>
+          <div class="invalid-feedback">Please Select a Category</div>
+        </div>
+
+        <div class="row">
+          <div class="mb-3 col-md-6">
+            <label for="propertyType" class="form-label">Property Type</label>
+            <select name="listing[propertyType]" class="form-select">
+              <option value="">Select Property Type (optional)</option>
+              <option value="Hotel">Hotel</option>
+              <option value="Apartment">Apartment</option>
+              <option value="House">House</option>
+              <option value="Villa">Villa</option>
+              <option value="Resort">Resort</option>
+              <option value="Cottage">Cottage</option>
+              <option value="Studio">Studio</option>
+              <option value="Hostel">Hostel</option>
+              <option value="Cabin">Cabin</option>
+              <option value="Farmhouse">Farmhouse</option>
+              <option value="Houseboat">Houseboat</option>
+              <option value="Chalet">Chalet</option>
+            </select>
+          </div>
+
+          <div class="mb-3 col-md-6">
+            <label for="maxGuests" class="form-label">Max Guests</label>
+            <input name="listing[maxGuests]" type="number" class="form-control" min="1" max="100" placeholder="e.g., 4" />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="amenities" class="form-label">Amenities (select all that apply)</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="WiFi" id="amenity_wifi" />
+              <label class="form-check-label" for="amenity_wifi">WiFi</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Parking" id="amenity_parking" />
+              <label class="form-check-label" for="amenity_parking">Parking</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Pool" id="amenity_pool" />
+              <label class="form-check-label" for="amenity_pool">Pool</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Kitchen" id="amenity_kitchen" />
+              <label class="form-check-label" for="amenity_kitchen">Kitchen</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="AC" id="amenity_ac" />
+              <label class="form-check-label" for="amenity_ac">AC</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Heating" id="amenity_heating" />
+              <label class="form-check-label" for="amenity_heating">Heating</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Laundry" id="amenity_laundry" />
+              <label class="form-check-label" for="amenity_laundry">Laundry</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Garden" id="amenity_garden" />
+              <label class="form-check-label" for="amenity_garden">Garden</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="TV" id="amenity_tv" />
+              <label class="form-check-label" for="amenity_tv">TV</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Gym" id="amenity_gym" />
+              <label class="form-check-label" for="amenity_gym">Gym</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Balcony" id="amenity_balcony" />
+              <label class="form-check-label" for="amenity_balcony">Balcony</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="listing[amenities]" value="Fireplace" id="amenity_fireplace" />
+              <label class="form-check-label" for="amenity_fireplace">Fireplace</label>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-dark add-btn mt-3">Add</button>
+      </form>
+
+    </div>
+  </div>
