@@ -1,19 +1,27 @@
 <% layout("/layouts/boilerplate") -%>
 
-<div class="row mt-3 mb-5">
-  <h1 class="col-6 offset-3">Login</h1>
-  <div class="col-6 offset-3">
-    <form action="/login" method="POST" class="needs-validation" novalidate>
+<div class="row mt-4 mb-5">
+  <div class="col-lg-6 col-md-8 col-12 mx-auto">
+    <div class="card shadow-sm border-0 p-4">
+      <h2 class="fw-bold mb-3 text-center">Log In to Wanderlust</h2>
+      <form action="/login" method="POST" class="needs-validation" novalidate>
         <div class="mb-3">
           <label for="username" class="form-label">Username</label>
-          <input name="username" id="username" type="text" class="form-control" required />
+          <input name="username" id="username" type="text" class="form-control" placeholder="Enter username" required />
+          <div class="invalid-feedback">Please enter your username.</div>
         </div>
-        
+
         <div class="mb-3">
           <label for="password" class="form-label">Password</label>
-          <input name="password" id="password" type="password" class="form-control" required />
+          <input name="password" id="password" type="password" class="form-control" placeholder="Enter password" required />
+          <div class="invalid-feedback">Please enter your password.</div>
         </div>
-        <button class="btn btn-success">Login</button>
-    </form>
+
+        <button class="btn btn-dark w-100 py-2 mt-2">Log In</button>
+      </form>
+      <div class="text-center mt-3">
+        <small class="text-muted">Don't have an account? <a href="/signup" class="text-decoration-none">Sign Up</a></small>
+      </div>
+    </div>
   </div>
 </div>

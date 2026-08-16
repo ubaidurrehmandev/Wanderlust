@@ -1,8 +1,13 @@
 <% layout("/layouts/boilerplate") %>
 
-<div class="row mt-3">
-<div class="alert alert-danger col-6 offset-3" role="alert">
-  <h4> <%= message %> </h4>
- 
-</div>
+<div class="row mt-4 mb-5">
+  <div class="col-lg-6 col-md-8 col-12 mx-auto">
+    <div class="alert alert-danger shadow-sm border-0 p-4" role="alert">
+      <h4 class="alert-heading fw-bold mb-2"><i class="fa-solid fa-triangle-exclamation me-2"></i> Error</h4>
+      <p class="mb-0 fs-6"><%= message %></p>
+    </div>
+    <div class="text-center mt-3">
+      <a href="/listings" class="btn btn-dark">Return to Home</a>
+    </div>
+  </div>
 </div>

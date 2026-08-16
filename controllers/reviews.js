@@ -1,40 +1,80 @@
 const Listing = require("../models/listing");
 const Review = require("../models/review");
 const ExpressError = require("../utils/expressError.js");
+const mongoose = require("mongoose");
+
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id) &&
+    String(new mongoose.Types.ObjectId(id)) === String(id);
+}
 
 module.exports.createReview = async (req, res) => {
-    let listing = await Listing.findById(req.params.id);
+  const { id } = req.params;
 
-    if (!listing) {
-      throw new ExpressError(404, "Listing not found");
-    }
+  if (!isValidObjectId(id)) {
+    throw new ExpressError(404, "Listing not found");
+  }
 
-    let newReview = new Review(req.body.review);
+  const listing = await Listing.findById(id);
 
-    newReview.owner = req.user._id;
+  if (!listing) {
+    throw new ExpressError(404, "Listing not found");
+  }
 
-    listing.reviews.push(newReview);
+  const newReview = new Review(req.body.review);
+  newReview.author = req.user._id;
 
-    await newReview.save();
-    await listing.save();
+  listing.reviews.push(newReview);
 
-    req.flash("success", "New Review Created!");
-    res.redirect(`/listings/${listing._id}`);
-  };
+  await newReview.save();
+  await listing.save();
 
-  module.exports.destroyReview = async (req, res) => {
-        const { id, reviewId } = req.params;
+  req.flash("success", "New Review Created!");
+  res.redirect(`/listings/${listing._id}`);
+};
 
-        let listing = await Listing.findByIdAndUpdate(id, {
-            $pull: { reviews: reviewId },
-        });
+module.exports.updateReview = async (req, res) => {
+  const { id, reviewId } = req.params;
 
-        if (!listing) {
-            throw new ExpressError(404, "Listing not found");
-        }
+  if (!isValidObjectId(id) || !isValidObjectId(reviewId)) {
+    throw new ExpressError(404, "Review not found");
+  }
 
-        await Review.findByIdAndDelete(reviewId);
+  const listing = await Listing.findById(id);
+  if (!listing) {
+    throw new ExpressError(404, "Listing not found");
+  }
 
-        req.flash("success", "Review Deleted!");
-        res.redirect(`/listings/${id}`);
-    };
+  const review = await Review.findById(reviewId);
+  if (!review) {
+    throw new ExpressError(404, "Review not found");
+  }
+
+  review.rating = req.body.review.rating;
+  review.comment = req.body.review.comment;
+  await review.save();
+
+  req.flash("success", "Review Updated!");
+  res.redirect(`/listings/${id}`);
+};
+
+module.exports.destroyReview = async (req, res) => {
+  const { id, reviewId } = req.params;
+
+  if (!isValidObjectId(id) || !isValidObjectId(reviewId)) {
+    throw new ExpressError(404, "Review not found");
+  }
+
+  const listing = await Listing.findByIdAndUpdate(id, {
+    $pull: { reviews: reviewId },
+  });
+
+  if (!listing) {
+    throw new ExpressError(404, "Listing not found");
+  }
+
+  await Review.findByIdAndDelete(reviewId);
+
+  req.flash("success", "Review Deleted!");
+  res.redirect(`/listings/${id}`);
+};

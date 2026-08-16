@@ -1,5 +1,11 @@
 node_modules/
 .env
+.env.*
+!.env.example
 upload/
+upload*/
+*.log
 .DS_Store
-npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

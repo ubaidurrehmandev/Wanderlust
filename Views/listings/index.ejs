@@ -4,36 +4,46 @@
   #filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.5rem;
-    margin-top: 2rem;
-    margin-bottom: 2rem;
+    align-items: center;
+    gap: 1.75rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
   }
 
   .filter {
     text-align: center;
     opacity: 0.7;
     cursor: pointer;
-    transition: opacity 0.3s;
+    transition: opacity 0.2s, transform 0.2s;
+    min-width: 60px;
+    flex-shrink: 0;
   }
 
   .filter:hover {
     opacity: 1;
-    cursor: pointer;
+    transform: translateY(-2px);
   }
 
   .filter.active {
     opacity: 1;
     border-bottom: 3px solid #fe424d;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .filter i {
+    font-size: 1.3rem;
   }
 
   .filter p {
     font-size: 0.8rem;
-    margin-top: 0.5rem;
+    margin-top: 0.4rem;
+    margin-bottom: 0;
   }
 </style>
 
-<!-- Original Quick Filter Buttons -->
+<!-- Filter Categories -->
 <div id="filters">
   <div class="filter" onclick="filterByCategory('Trending')">
     <div><i class="fa-solid fa-fire"></i></div>
@@ -71,83 +81,88 @@
     <div><i class="fa-regular fa-snowflake"></i></div>
     <p>Arctic</p>
   </div>
+  <div class="filter" onclick="filterByCategory('Beach')">
+    <div><i class="fa-solid fa-umbrella-beach"></i></div>
+    <p>Beach</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Luxury')">
+    <div><i class="fa-solid fa-gem"></i></div>
+    <p>Luxury</p>
+  </div>
+  <div class="filter" onclick="filterByCategory('Adventure')">
+    <div><i class="fa-solid fa-mountain-sun"></i></div>
+    <p>Adventure</p>
+  </div>
 </div>
-
-
 
 <% if (category || search) { %>
-  <div class="alert alert-info mt-3" role="alert">
-    <% if (search) { %>
-      Searching: <strong>"<%= search %>"</strong>
-    <% } %>
-    <% if (category) { %>
-      Category: <strong>"<%= category %>"</strong>
-    <% } %>
-    <a href="/listings" class="btn btn-sm btn-outline-secondary ms-2">Clear</a>
-  </div>
-<% } %>
-
-<% if (allListings.length === 0) { %>
-  <div class="alert alert-warning mt-3" role="alert">
-    No listings found. Try adjusting your filters or search terms.
-  </div>
-<% } %>
-
-<div class="row row-cols-lg-3 row-cols-md-2 row-cols-sm-1 mt-3">
-
-  <% for (let listing of allListings) { %>
-
-    <div class="col mb-4">
-
-      <a href="/listings/<%= listing._id %>" class="listing-link">
-
-        <div class="listing-card">
-
-          <img src="<%= listing.image.url %>" class="card-img-top" alt="listing_image" style="height: 20rem;" />
-
-          <div class="card-img-overlay"></div>
-
-          <div class="card-body">
-            <p class="card-text">
-              <b>
-                <%= listing.title %>
-              </b>
-              <br>
-              &#8360; <%= listing.price.toLocaleString("en-PK") %> / night
-              <% if (listing.propertyType) { %>
-                <br><small class="text-muted"><%= listing.propertyType %></small>
-              <% } %>
-            </p>
-          </div>
-
-        </div>
-
-      </a>
-
+  <div class="alert alert-info d-flex align-items-center justify-content-between mt-2 mb-4" role="alert">
+    <div>
+      <% if (search) { %>
+        <span>Search: <strong>"<%= search %>"</strong></span>
+      <% } %>
+      <% if (category && search) { %> | <% } %>
+      <% if (category) { %>
+        <span>Category: <strong>"<%= category %>"</strong></span>
+      <% } %>
     </div>
+    <a href="/listings" class="btn btn-sm btn-outline-dark">Clear Filter</a>
+  </div>
+<% } %>
 
-  <% } %>
-
-</div>
+<% if (!allListings || allListings.length === 0) { %>
+  <div class="alert alert-warning text-center mt-4 p-4" role="alert">
+    <h5>No listings found</h5>
+    <p class="mb-2">Try adjusting your filters or search keywords to find what you're looking for.</p>
+    <a href="/listings" class="btn btn-dark btn-sm">View All Listings</a>
+  </div>
+<% } else { %>
+  <div class="row row-cols-lg-3 row-cols-md-2 row-cols-sm-1 g-4 mt-1">
+    <% for (let listing of allListings) { %>
+      <div class="col">
+        <a href="/listings/<%= listing._id %>" class="listing-link">
+          <div class="listing-card card h-100 shadow-sm border-0">
+            <img
+              src="<%= (listing.image && listing.image.url) ? listing.image.url : 'https://images.unsplash.com/photo-1625505826533-5c80aca7d157?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=60' %>"
+              class="card-img-top"
+              alt="<%= listing.title %>"
+              style="height: 18rem; object-fit: cover;"
+            />
+            <div class="card-body">
+              <p class="card-text">
+                <strong class="fs-6"><%= listing.title %></strong>
+                <br>
+                <span class="text-muted"><%= listing.location %>, <%= listing.country %></span>
+                <br>
+                <b>&#8360; <%= (listing.price !== undefined && listing.price !== null) ? Number(listing.price).toLocaleString("en-PK") : "0" %></b> <small class="text-muted">/ night</small>
+                <% if (listing.propertyType) { %>
+                  <span class="badge bg-light text-dark border ms-1"><%= listing.propertyType %></span>
+                <% } %>
+              </p>
+            </div>
+          </div>
+        </a>
+      </div>
+    <% } %>
+  </div>
+<% } %>
 
 <script>
   function filterByCategory(categoryName) {
-    // Get current query parameters
     const urlParams = new URLSearchParams(window.location.search);
+    const currentCategory = urlParams.get('category');
     
-    // Build new URL with category, preserving search filter
-    let newUrl = `/listings?category=${encodeURIComponent(categoryName)}`;
-    
-    // Preserve search filter
-    const search = urlParams.get('search');
-    if (search) {
-      newUrl += `&search=${encodeURIComponent(search)}`;
+    // Toggle off if already active
+    if (currentCategory === categoryName) {
+      urlParams.delete('category');
+    } else {
+      urlParams.set('category', categoryName);
     }
     
-    window.location.href = newUrl;
+    const queryString = urlParams.toString();
+    window.location.href = queryString ? `/listings?${queryString}` : '/listings';
   }
 
-  // Highlight active category filter
   document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const activeCategory = urlParams.get('category');
@@ -155,9 +170,8 @@
     if (activeCategory) {
       const filters = document.querySelectorAll('.filter');
       filters.forEach(filter => {
-        // Get the text content from the paragraph
-        const filterText = filter.querySelector('p').textContent.trim();
-        if (filterText === activeCategory) {
+        const p = filter.querySelector('p');
+        if (p && p.textContent.trim().toLowerCase() === activeCategory.trim().toLowerCase()) {
           filter.classList.add('active');
         }
       });

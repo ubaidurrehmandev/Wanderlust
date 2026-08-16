@@ -1,113 +1,148 @@
 const Listing = require("../models/listing");
-const { cloudinary, useLocal } = require("../cloudinary/index.js");
-const fs = require('fs');
-const path = require('path');
 const ExpressError = require("../utils/expressError.js");
+const { cloudinary } = require("../cloudinary/index.js");
+const { CATEGORIES } = require("../config/constants.js");
 const NodeGeocoder = require("node-geocoder");
+const mongoose = require("mongoose");
+const fs = require("fs/promises");
+const path = require("path");
 
-const geoOptions = {
-  provider: "openstreetmap",
-};
-const geocoder = NodeGeocoder(geoOptions);
-
-async function uploadToCloudinary(fileBuffer) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream({ folder: 'Wanderlust' }, (error, result) => {
-      if (error) return reject(error);
-      resolve(result);
-    });
-    stream.end(fileBuffer);
-  });
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id) &&
+    String(new mongoose.Types.ObjectId(id)) === String(id);
 }
 
+const geocoder = NodeGeocoder({
+  provider: "openstreetmap",
+  userAgent: "WanderlustApp/1.0",
+});
+
+function getLocalImageData(file) {
+  if (!file || !file.filename) return null;
+  return {
+    url: `/uploads/${file.filename}`,
+    filename: file.filename,
+    public_id: null,
+  };
+}
+
+function isLocalUploadUrl(url) {
+  return typeof url === "string" && url.startsWith("/uploads/");
+}
+
+async function deleteLocalUpload(url) {
+  if (!isLocalUploadUrl(url)) return;
+  const filePath = path.join(__dirname, "..", "public", url.replace(/^\//, ""));
+  try {
+    await fs.unlink(filePath);
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.warn("Failed to delete local upload:", err.message);
+    }
+  }
+}
+
+// Index Route: Displays all listings with optional category & search filter
 module.exports.index = async (req, res) => {
   const { category, search } = req.query;
   let query = {};
 
-  // Handle category filter
   if (category && category.trim() !== "") {
-    query.category = category;
+    const trimmedCategory = category.trim();
+    if (CATEGORIES.includes(trimmedCategory)) {
+      query.category = trimmedCategory;
+    }
   }
 
-  // Handle search by location or country
   if (search && search.trim() !== "") {
-    const searchRegex = new RegExp(search.trim(), "i"); // case-insensitive
+    const searchRegex = new RegExp(search.trim(), "i");
     query.$or = [
+      { title: searchRegex },
       { location: searchRegex },
-      { country: searchRegex }
+      { country: searchRegex },
+      { propertyType: searchRegex },
     ];
   }
 
-  const allListings = await Listing.find(query);
+  const allListings = await Listing.find(query).sort({ createdAt: -1 });
   res.render("listings/index.ejs", { allListings, category, search });
-}; 
+};
 
-module.exports.renderNewForm =  (req, res) => {
+// Render New Listing Form
+module.exports.renderNewForm = (req, res) => {
   res.render("listings/new.ejs");
 };
 
+// Show Listing Details
 module.exports.showListing = async (req, res) => {
-  let { id } = req.params;
+  const { id } = req.params;
+
+  if (!isValidObjectId(id)) {
+    req.flash("error", "Invalid listing ID!");
+    return res.redirect("/listings");
+  }
+
   const listing = await Listing.findById(id)
-        .populate("owner")
-        .populate({
-            path: "reviews",
-            populate: {
-                path: "owner"
-            }
-        });
+    .populate("owner")
+    .populate({
+      path: "reviews",
+      populate: {
+        path: "author",
+      },
+    });
+
   if (!listing) {
     req.flash("error", "Listing you requested for does not exist!");
-    return res.redirect("/listings"); // return prevents further execution
+    return res.redirect("/listings");
   }
+
   res.render("listings/show.ejs", { listing });
 };
 
+// Create New Listing
 module.exports.createListing = async (req, res, next) => {
   try {
-    const payload = req.body.listing || {};
-    const newListing = new Listing(payload);
-    if (req.user) newListing.owner = req.user._id;
-
-    // If a file was uploaded but Cloudinary is NOT configured, fail loudly
-    // If a file was uploaded AND Cloudinary is configured, upload buffer and store Cloudinary info
-    if (req.file && cloudinary && req.file.buffer) {
-      try {
-        const result = await uploadToCloudinary(req.file.buffer);
-        newListing.image.url = result.secure_url || result.url || newListing.image.url;
-        newListing.image.filename = result.public_id || newListing.image.filename;
-        newListing.image.public_id = result.public_id || newListing.image.public_id;
-      } catch (e) {
-        console.warn('Cloudinary upload failed:', e.message);
-      }
-    } else if (req.file && useLocal) {
-      // Save uploaded file to local disk under /upload and serve from /uploads
-      try {
-        const uploadsDir = path.join(__dirname, '..', 'upload');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-        const ext = path.extname(req.file.originalname) || '.jpg';
-        const filename = Date.now() + '-' + Math.random().toString(36).slice(2,8) + ext;
-        const filepath = path.join(uploadsDir, filename);
-        fs.writeFileSync(filepath, req.file.buffer);
-        newListing.image.url = `/uploads/${filename}`;
-        newListing.image.filename = filename;
-        newListing.image.public_id = null;
-      } catch (e) {
-        console.warn('Local upload failed:', e.message);
-      }
+    if (!req.user) {
+      throw new ExpressError(401, "You must be logged in to create a listing.");
     }
 
-    // Geocode location (only at creation)
-    try {
-      const geoRes = await geocoder.geocode(`${newListing.location}, ${newListing.country}`);
-      if (geoRes && geoRes.length > 0) {
-        newListing.coordinates = {
-          lat: geoRes[0].latitude,
-          lng: geoRes[0].longitude,
-        };
+    const payload = req.body.listing || {};
+    delete payload.owner;
+    const newListing = new Listing(payload);
+    newListing.owner = req.user._id;
+
+    // Handle local image upload first for localhost development
+    if (req.file && req.file.filename) {
+      newListing.image = getLocalImageData(req.file);
+    } else if (payload.image && typeof payload.image === "object" && payload.image.url) {
+      newListing.image = {
+        url: payload.image.url,
+        filename: "custom_image_url",
+        public_id: null,
+      };
+    } else if (typeof payload.image === "string" && payload.image.trim() !== "") {
+      newListing.image = {
+        url: payload.image.trim(),
+        filename: "custom_image_url",
+        public_id: null,
+      };
+    }
+
+    // Handle Geocoding (Safe OpenStreetMap)
+    if (newListing.location && newListing.country) {
+      try {
+        const geoRes = await geocoder.geocode(
+          `${newListing.location}, ${newListing.country}`
+        );
+        if (geoRes && geoRes.length > 0) {
+          newListing.coordinates = {
+            lat: geoRes[0].latitude,
+            lng: geoRes[0].longitude,
+          };
+        }
+      } catch (geoErr) {
+        console.warn("Geocoding notice:", geoErr.message);
       }
-    } catch (e) {
-      console.warn("Geocoding failed:", e.message);
     }
 
     await newListing.save();
@@ -118,119 +153,133 @@ module.exports.createListing = async (req, res, next) => {
   }
 };
 
+// Render Edit Listing Form
 module.exports.renderEditForm = async (req, res) => {
-  let { id } = req.params;
+  const { id } = req.params;
+
+  if (!isValidObjectId(id)) {
+    req.flash("error", "Invalid listing ID!");
+    return res.redirect("/listings");
+  }
+
   const listing = await Listing.findById(id);
+
   if (!listing) {
     req.flash("error", "Listing you requested for does not exist!");
     return res.redirect("/listings");
   }
+
   res.render("listings/edit.ejs", { listing });
 };
 
+// Update Listing
 module.exports.updateListing = async (req, res, next) => {
   try {
-    let { id } = req.params;
+    const { id } = req.params;
     const listing = await Listing.findById(id);
+
     if (!listing) {
-      throw new Error("Listing not found");
+      req.flash("error", "Listing not found!");
+      return res.redirect("/listings");
     }
 
-    // If a new image is uploaded and Cloudinary configured, remove old from Cloudinary and set new
-    if (req.file && cloudinary && req.file.buffer) {
-      if (listing.image && listing.image.public_id) {
+    const payload = req.body.listing || {};
+    delete payload.owner;
+
+    // Handle Image replacement
+    if (req.file && req.file.filename) {
+      if (listing.image && listing.image.public_id && cloudinary) {
         try {
           await cloudinary.uploader.destroy(listing.image.public_id);
-        } catch (e) {
-          console.warn("Failed to delete old image from Cloudinary:", e.message);
+        } catch (delErr) {
+          console.warn("Could not delete old Cloudinary image:", delErr.message);
         }
       }
-      try {
-        const result = await uploadToCloudinary(req.file.buffer);
-        listing.image.url = result.secure_url || result.url || listing.image.url;
-        listing.image.filename = result.public_id || listing.image.filename;
-        listing.image.public_id = result.public_id || listing.image.public_id;
-      } catch (e) {
-        console.warn('Cloudinary upload failed on update:', e.message);
-      }
-    } else if (req.file && useLocal) {
-      // Save uploaded file to local disk and remove old local file if exists
-      try {
-        const uploadsDir = path.join(__dirname, '..', 'upload');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-        // delete old local file if present and stored in uploads
-        if (listing.image && listing.image.filename && !listing.image.public_id) {
-          const oldPath = path.join(uploadsDir, listing.image.filename);
-          if (fs.existsSync(oldPath)) {
-            try { fs.unlinkSync(oldPath); } catch (e) { console.warn('Failed to delete old local file:', e.message); }
-          }
-        }
-        const ext = path.extname(req.file.originalname) || '.jpg';
-        const filename = Date.now() + '-' + Math.random().toString(36).slice(2,8) + ext;
-        const filepath = path.join(uploadsDir, filename);
-        fs.writeFileSync(filepath, req.file.buffer);
-        listing.image.url = `/uploads/${filename}`;
-        listing.image.filename = filename;
-        listing.image.public_id = null;
-      } catch (e) {
-        console.warn('Local upload failed on update:', e.message);
-      }
+      await deleteLocalUpload(listing.image?.url);
+      listing.image = getLocalImageData(req.file);
+    } else if (payload.image && typeof payload.image === "object" && payload.image.url && payload.image.url !== listing.image?.url) {
+      await deleteLocalUpload(listing.image?.url);
+      listing.image = {
+        url: payload.image.url,
+        filename: "custom_image_url",
+        public_id: null,
+      };
+    } else if (typeof payload.image === "string" && payload.image.trim() !== "" && payload.image.trim() !== listing.image?.url) {
+      await deleteLocalUpload(listing.image?.url);
+      listing.image = {
+        url: payload.image.trim(),
+        filename: "custom_image_url",
+        public_id: null,
+      };
     }
 
-    // Update basic fields
-    listing.title = req.body.listing.title;
-    listing.description = req.body.listing.description;
-    listing.price = req.body.listing.price;
-    listing.category = req.body.listing.category || null;
-    listing.propertyType = req.body.listing.propertyType || null;
-    listing.maxGuests = req.body.listing.maxGuests || null;
-    listing.amenities = req.body.listing.amenities || [];
-    const oldLocation = listing.location;
-    listing.location = req.body.listing.location;
-    listing.country = req.body.listing.country;
+    // Update fields
+    listing.title = payload.title || listing.title;
+    listing.description = payload.description || listing.description;
+    listing.price = payload.price !== undefined ? payload.price : listing.price;
+    listing.category = payload.category || undefined;
+    listing.propertyType = payload.propertyType || undefined;
+    listing.maxGuests = payload.maxGuests || 1;
+    listing.amenities = Array.isArray(payload.amenities) ? payload.amenities : [];
 
-    // If location changed, re-geocode
-    if (req.body.listing.location && req.body.listing.location !== oldLocation) {
+    const oldLocation = listing.location;
+    const oldCountry = listing.country;
+    listing.location = payload.location || listing.location;
+    listing.country = payload.country || listing.country;
+
+    // Re-geocode if location changed or coordinates missing
+    if (
+      (payload.location !== oldLocation || payload.country !== oldCountry) ||
+      !listing.coordinates ||
+      !listing.coordinates.lat
+    ) {
       try {
-        const geoRes = await geocoder.geocode(`${req.body.listing.location}, ${req.body.listing.country}`);
+        const geoRes = await geocoder.geocode(
+          `${listing.location}, ${listing.country}`
+        );
         if (geoRes && geoRes.length > 0) {
           listing.coordinates = {
             lat: geoRes[0].latitude,
             lng: geoRes[0].longitude,
           };
         }
-      } catch (e) {
-        console.warn("Geocoding failed on update:", e.message);
+      } catch (geoErr) {
+        console.warn("Geocoding notice on update:", geoErr.message);
       }
     }
 
     await listing.save();
-    req.flash("success", "Listing Updated");
+    req.flash("success", "Listing Updated!");
     res.redirect(`/listings/${id}`);
   } catch (err) {
     next(err);
   }
 };
 
+// Delete Listing
 module.exports.destroyListing = async (req, res, next) => {
   try {
-    let { id } = req.params;
-    let deletedListing = await Listing.findByIdAndDelete(id);
+    const { id } = req.params;
+    const deletedListing = await Listing.findByIdAndDelete(id);
+
     if (!deletedListing) {
-      throw new Error("Listing not found");
+      req.flash("error", "Listing not found!");
+      return res.redirect("/listings");
     }
-    // delete image from Cloudinary if present
+
+    // Clean up stored image if present
     if (deletedListing.image && deletedListing.image.public_id && cloudinary) {
       try {
         await cloudinary.uploader.destroy(deletedListing.image.public_id);
       } catch (e) {
-        console.warn("Failed to delete image from Cloudinary on listing delete:", e.message);
+        console.warn("Failed to delete image from Cloudinary:", e.message);
       }
     }
+    await deleteLocalUpload(deletedListing.image?.url);
+
     req.flash("success", "Listing Deleted!");
     res.redirect("/listings");
   } catch (err) {
     next(err);
   }
 };
-

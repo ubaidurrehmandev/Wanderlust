@@ -1,125 +1,221 @@
-  require('dotenv').config();
-  const express = require("express");
-  const app = express();
-  const mongoose = require("mongoose");
-  const Listing = require("./models/listing.js");
-  const path = require("path");
-  const methodOverride = require("method-override");
-  const ejsMate = require("ejs-mate");
-  const ExpressError = require("./utils/expressError.js");
-  const session = require("express-session");
-  const MongoStore = require("connect-mongo").MongoStore;
-  const flash = require("connect-flash");
-  const passport = require("passport");
-  const LocalStrategy = require("passport-local");
-  const User = require("./models/user.js");
+require("dotenv").config();
 
+const express = require("express");
+const app = express();
+const mongoose = require("mongoose");
+const path = require("path");
+const methodOverride = require("method-override");
+const ejsMate = require("ejs-mate");
+const session = require("express-session");
+const MongoStore = require("connect-mongo").MongoStore;
+const flash = require("connect-flash");
+const passport = require("passport");
+const LocalStrategy = require("passport-local");
 
+const User = require("./models/user.js");
+const ExpressError = require("./utils/expressError.js");
 
-  const listingsRouter = require("./routes/listing.js");
-  const reviewRouter = require("./routes/review.js"); 
-  const userRouter = require("./routes/user.js"); 
+const listingsRouter = require("./routes/listing.js");
+const reviewRouter = require("./routes/review.js");
+const userRouter = require("./routes/user.js");
 
+const isProduction = process.env.NODE_ENV === "production";
 
-  const dbUrl = process.env.ATLASDB_URL;
+// ================= DATABASE =================
 
-  main()
-    .then(() => {
-      console.log("connected to DB");
-    })
-    .catch((err) => {
-      console.log(err);
-    });
+const dbUrl =
+    process.env.MONGO_URL ||
+    process.env.ATLASDB_URL ||
+    (!isProduction
+        ? "mongodb://127.0.0.1:27017/wanderlust"
+        : null);
 
-  async function main() {
-    await mongoose.connect(dbUrl);
-  }
+if (!dbUrl) {
+    console.error("FATAL ERROR: MONGO_URL environment variable is required.");
+    process.exit(1);
+}
 
-  app.set("view engine", "ejs");
-  app.set("views", path.join(__dirname, "Views"));
-  app.use(express.urlencoded({ extended: true }));
-  app.use(methodOverride("_method"));
-  app.engine('ejs', ejsMate);
-  app.use(express.static(path.join(__dirname, "public")));
-  app.use('/uploads', express.static(path.join(__dirname, 'upload')));
+// ================= SESSION =================
 
-  const store = MongoStore.create({
+const sessionSecret =
+    process.env.SESSION_SECRET || "wanderlust-dev-only-secret";
+
+if (isProduction && !process.env.SESSION_SECRET) {
+    console.error(
+        "FATAL ERROR: SESSION_SECRET environment variable is required in production."
+    );
+    process.exit(1);
+}
+
+if (isProduction) {
+    app.set("trust proxy", 1);
+}
+
+// ================= VIEW ENGINE =================
+
+app.engine("ejs", ejsMate);
+app.set("view engine", "ejs");
+
+app.set("views", [
+    path.join(__dirname, "views"),
+    path.join(__dirname, "Views"),
+]);
+
+// ================= MIDDLEWARE =================
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+app.use(methodOverride("_method"));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+// ================= SESSION STORE =================
+
+const store = MongoStore.create({
     mongoUrl: dbUrl,
     crypto: {
-      secret: process.env.SESSION_SECRET,
+        secret: sessionSecret,
     },
     touchAfter: 24 * 3600,
-  });
+});
 
-  store.on("error", (err) => {
-    console.log("ERROR in MONGO SESSION STORE", err);
-  });
-    
+store.on("error", (err) => {
+    console.error("ERROR IN MONGO SESSION STORE:", err);
+});
 
-  const sessionOptions = {
-    store,
-    secret: process.env.SESSION_SECRET,
-      resave: false,
-      saveUninitialized: true,
-      cookie: {
-          expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          httpOnly: true
-      }
-  };
+app.use(
+    session({
+        store,
+        secret: sessionSecret,
+        resave: false,
+        saveUninitialized: false,
 
-  // app.get("/", (req, res) => {
-  //   res.send("Hi, I am root");
-  // });
+        cookie: {
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true,
+            sameSite: "lax",
+            secure: isProduction,
+        },
+    })
+);
 
+app.use(flash());
 
+// ================= PASSPORT =================
 
-  app.use(session(sessionOptions));
-  app.use(flash());
+app.use(passport.initialize());
+app.use(passport.session());
 
-  app.use(passport.initialize());
-  app.use(passport.session());
-  passport.use(new LocalStrategy(User.authenticate()));
+passport.use(new LocalStrategy(User.authenticate()));
 
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
-  passport.serializeUser(User.serializeUser());
-  passport.deserializeUser(User.deserializeUser());
+// ================= GLOBAL VARIABLES =================
 
-
-
-
-
-
-  app.use((req, res, next) => {
+app.use((req, res, next) => {
     res.locals.success = req.flash("success");
     res.locals.error = req.flash("error");
-    res.locals.currUser = req.user;  // available in all EJS templates
+    res.locals.currUser = req.user || null;
+
     next();
-  });
+});
 
+// ================= HOME =================
 
+// IMPORTANT:
+// Visiting "/" goes to listings.
+// It does NOT go to account/profile.
 
+app.get("/", (req, res) => {
+    res.redirect("/listings");
+});
 
+// ================= ROUTES =================
 
-  app.use("/listings", listingsRouter);
-  app.use("/listings/:id/reviews", reviewRouter);
-  app.use("/", userRouter);
+app.use("/listings", listingsRouter);
 
+app.use("/listings/:id/reviews", reviewRouter);
 
+app.use("/", userRouter);
 
+// ================= 404 =================
 
-  app.use((req, res, next) => {
+app.use((req, res, next) => {
     next(new ExpressError(404, "Page Not Found!"));
-  });
+});
 
-  app.use((err, req, res, next) => {
-    let { statusCode = 500, message = "Something went wrong!" } = err;
-    console.error(err);
-    res.status(statusCode);
-    res.render("error.ejs", { message });
-  });
+// ================= ERROR HANDLER =================
 
-  const port = process.env.PORT || 8080;
-  app.listen(port, () => {
-    console.log(`server is listening to port ${port}`);
-  });
+app.use((err, req, res, next) => {
+    let {
+        statusCode = 500,
+        message = "Something went wrong!",
+    } = err;
+
+    if (err.name === "CastError") {
+        statusCode = 404;
+        message = "The requested resource was not found.";
+    }
+
+    if (err.name === "ValidationError") {
+        statusCode = 400;
+
+        message = Object.values(err.errors)
+            .map((e) => e.message)
+            .join(", ");
+    }
+
+    if (err.name === "MulterError") {
+        statusCode = 400;
+
+        message =
+            err.code === "LIMIT_FILE_SIZE"
+                ? "Image file is too large (maximum 10 MB)."
+                : "Invalid file upload.";
+    }
+
+    if (err.message === "Only image files are allowed!") {
+        statusCode = 400;
+        message = err.message;
+    }
+
+    if (isProduction && statusCode === 500) {
+        message = "Something went wrong!";
+    }
+
+    res.status(statusCode).render("error.ejs", {
+        message,
+        currUser: res.locals.currUser || null,
+        success: res.locals.success || [],
+        error: res.locals.error || [],
+    });
+});
+
+// ================= START SERVER =================
+
+async function startServer() {
+    try {
+        await mongoose.connect(dbUrl);
+
+        console.log("Connected to MongoDB successfully.");
+
+        const port = process.env.PORT || 8080;
+
+        app.listen(port, () => {
+            console.log(`Wanderlust server running on port ${port}`);
+            console.log(`http://localhost:${port}`);
+        });
+
+    } catch (err) {
+        console.error(
+            "FATAL: Failed to connect to MongoDB:",
+            err.message
+        );
+
+        process.exit(1);
+    }
+}
+
+startServer();
